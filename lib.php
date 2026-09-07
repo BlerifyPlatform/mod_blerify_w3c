@@ -95,7 +95,7 @@ function blerify_resolve_template_name($projectid, $templateid) {
     global $CFG;
     require_once($CFG->dirroot . '/mod/blerify/locallib.php');
 
-    if (empty($projectid)) {
+    if (empty($projectid) || !\mod_blerify\local\service_account::get_decoded()) {
         return $templateid;
     }
 

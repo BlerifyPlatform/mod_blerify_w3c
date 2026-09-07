@@ -49,8 +49,14 @@ class provider implements
         $collection->add_database_table('blerify_credentials', [
             'userid' => 'privacy:metadata:blerify_credentials:userid',
             'credentialid' => 'privacy:metadata:blerify_credentials:credentialid',
+            'projectid' => 'privacy:metadata:blerify_credentials:projectid',
+            'templateid' => 'privacy:metadata:blerify_credentials:templateid',
             'status' => 'privacy:metadata:blerify_credentials:status',
+            'remotestatus' => 'privacy:metadata:blerify_credentials:remotestatus',
             'code' => 'privacy:metadata:blerify_credentials:code',
+            'errordetail' => 'privacy:metadata:blerify_credentials:errordetail',
+            'timeissued' => 'privacy:metadata:blerify_credentials:timeissued',
+            'timeclaimed' => 'privacy:metadata:blerify_credentials:timeclaimed',
             'timecreated' => 'privacy:metadata:blerify_credentials:timecreated',
         ], 'privacy:metadata:blerify_credentials');
 
@@ -138,8 +144,12 @@ class provider implements
             foreach ($credentials as $credential) {
                 $data = (object) [
                     'credentialid' => $credential->credentialid,
+                    'projectid' => $credential->projectid,
+                    'templateid' => $credential->templateid,
                     'status' => $credential->status,
                     'remotestatus' => $credential->remotestatus,
+                    'code' => $credential->code,
+                    'errordetail' => $credential->errordetail,
                     'timeissued' => $credential->timeissued
                         ? transform::datetime($credential->timeissued) : null,
                     'timeclaimed' => $credential->timeclaimed

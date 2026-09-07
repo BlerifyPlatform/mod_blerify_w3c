@@ -43,7 +43,6 @@ require_login($course->id, false, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/blerify:view', $context);
 
-// Teachers may fetch any learner's certificate; learners only their own.
 if ($userid && $userid !== (int)$USER->id) {
     require_capability('mod/blerify:manage', $context);
 } else {
@@ -54,13 +53,23 @@ if (!in_array($asset, ['pdf', 'thumbnail'], true)) {
     throw new moodle_exception('invalidparameter', 'error');
 }
 
-/**
- * Fail as a resource rather than as a page: the browser requests this from an
- * <img> or a link, where a Moodle error page would arrive as a broken image
- * with no way to see what went wrong.
- *
- * @param string $reason Logged, never shown to the learner.
- */
+function blerify_asset_host_allowed($host) {
+    $host = strtolower($host);
+    $suffixes = ['.blerify.com', '.googleapis.com', '.amazonaws.com', '.windows.net'];
+
+    if ($host === 'blerify.com') {
+        return true;
+    }
+
+    foreach ($suffixes as $suffix) {
+        if (substr($host, -strlen($suffix)) === $suffix) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function blerify_asset_failure($reason) {
     debugging('Blerify asset unavailable: ' . $reason, DEBUG_DEVELOPER);
     header('HTTP/1.1 404 Not Found');
@@ -88,6 +97,10 @@ $url = $urls[$asset];
 
 if (empty($url) || strpos($url, 'https://') !== 0) {
     blerify_asset_failure('no signed URL for ' . $asset);
+}
+
+if (!blerify_asset_host_allowed((string)parse_url($url, PHP_URL_HOST))) {
+    blerify_asset_failure('unexpected storage host: ' . parse_url($url, PHP_URL_HOST));
 }
 
 $curl = new \curl();

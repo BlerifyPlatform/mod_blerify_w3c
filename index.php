@@ -52,7 +52,7 @@ $table->head = [get_string('name'), get_string('col_date', 'blerify')];
 foreach ($certificates as $certificate) {
     $link = html_writer::tag(
         'a',
-        $certificate->name,
+        format_string($certificate->name),
         ['href' => $CFG->wwwroot . '/mod/blerify/view.php?id=' . $certificate->coursemodule]
     );
     $issued = userdate($certificate->timecreated);
@@ -60,6 +60,6 @@ foreach ($certificates as $certificate) {
 }
 
 echo $OUTPUT->header();
-echo html_writer::tag('h3', get_string('indexheader', 'blerify', $course->fullname));
+echo html_writer::tag('h3', get_string('indexheader', 'blerify', format_string($course->fullname)));
 echo html_writer::table($table);
 echo $OUTPUT->footer();

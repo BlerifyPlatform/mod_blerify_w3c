@@ -38,17 +38,15 @@ class admin_setting_serviceaccount extends admin_setting {
      * @param string $description Description.
      * @param string $defaultsetting Default value.
      */
-    public function __construct($name, $visiblename, $description, $defaultsetting = '') {
-        parent::__construct($name, $visiblename, $description, $defaultsetting);
-    }
-
     /**
      * Return the current setting value.
      *
      * @return mixed
      */
+    const REDACTED = '********';
+
     public function get_setting() {
-        return \mod_blerify\local\service_account::get_raw();
+        return \mod_blerify\local\service_account::get_decoded() ? self::REDACTED : null;
     }
 
     /**
@@ -96,7 +94,7 @@ class admin_setting_serviceaccount extends admin_setting {
         $html .= '</div>';
 
         if (!empty($current)) {
-            $info = json_decode($current, true);
+            $info = \mod_blerify\local\service_account::get_decoded();
             $clientid = (is_array($info) && isset($info['client_id'])) ? $info['client_id'] : '';
             $label = get_string('setting_service_account_configured', 'blerify');
             if ($clientid !== '') {

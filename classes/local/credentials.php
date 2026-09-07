@@ -206,8 +206,6 @@ class credentials {
      * @throws \Exception
      */
     public function get_asset_urls($credrecord) {
-        global $DB;
-
         if (empty($credrecord->credentialid)) {
             return ['pdf' => null, 'thumbnail' => null];
         }
@@ -260,9 +258,15 @@ class credentials {
 
         $blerifyrecord = $DB->get_record('blerify', ['id' => $credrecord->blerifyid], '*', MUST_EXIST);
 
-        return $field === 'projectid'
-            ? $this->get_project_id($blerifyrecord)
-            : $blerifyrecord->templateid;
+        if ($field === 'projectid') {
+            return $this->get_project_id($blerifyrecord);
+        }
+
+        if (empty($blerifyrecord->templateid)) {
+            throw new \moodle_exception('error_no_template_id', 'blerify');
+        }
+
+        return $blerifyrecord->templateid;
     }
 
     private function get_project_id($blerifyrecord) {
@@ -340,76 +344,5 @@ class credentials {
               ORDER BY bc.timecreated DESC";
 
         return $DB->get_records_sql($sql, ['blerifyid' => $blerifyid]);
-    }
-
-    /**
-     * Detect environment from the service account token_uri.
-     *
-     * @return string
-     */
-    public function get_environment(): string {
-        $sa = service_account::get_decoded();
-        if ($sa && isset($sa['token_uri'])) {
-            $host = strtolower((string) parse_url($sa['token_uri'], PHP_URL_HOST));
-            if (strpos($host, 'api.staging.') !== false) {
-                return 'staging';
-            }
-            if (strpos($host, 'api.demo.') !== false) {
-                return 'demo';
-            }
-        }
-        return 'production';
-    }
-
-    /**
-     * Get the wallet hostname for the current environment.
-     *
-     * @return string
-     */
-    public function get_wallet_host(): string {
-        if (in_array($this->get_environment(), ['demo', 'staging'], true)) {
-            return 'demo.wallet.blerify.com';
-        }
-        return 'wallet.blerify.com';
-    }
-
-    /**
-     * Get the wallet platform URL for the current environment.
-     *
-     * @return string
-     */
-    public function get_wallet_platform(): string {
-        switch ($this->get_environment()) {
-            case 'staging':
-                return 'https://wallet.staging.blerify.com';
-            case 'demo':
-                return 'https://wallet.demo.blerify.com';
-            default:
-                return 'https://wallet.blerify.com';
-        }
-    }
-
-    /**
-     * Build the wallet deeplink a receiver follows to claim a credential.
-     *
-     * @param string $code The claim code returned by polling.
-     * @return string The deeplink URL, or '' when no code is available yet.
-     */
-    public function build_claim_deeplink(string $code): string {
-        if ($code === '') {
-            return '';
-        }
-
-        $sa = service_account::get_decoded();
-        $params = [
-            'code' => $code,
-            'organizationId' => isset($sa['organization_id']) ? $sa['organization_id'] : '',
-        ];
-
-        $params['organizationName'] = get_site()->fullname;
-        $params['platform'] = $this->get_wallet_platform();
-
-        return 'https://' . $this->get_wallet_host() . '/connect?' .
-            http_build_query($params, '', '&', PHP_QUERY_RFC3986);
     }
 }

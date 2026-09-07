@@ -25,11 +25,10 @@
 defined('MOODLE_INTERNAL') || die();
 
 $definitions = [
-    'ratelimit' => [
+    'templates' => [
         'mode' => cache_store::MODE_APPLICATION,
         'simplekeys' => true,
-        'simpledata' => true,
-        'ttl' => 60,
+        'ttl' => 300,
     ],
 
     'accesstokens' => [

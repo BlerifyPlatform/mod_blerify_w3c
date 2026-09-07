@@ -316,5 +316,27 @@ function xmldb_blerify_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090305, 'blerify');
     }
 
+    if ($oldversion < 2026090700) {
+
+        $targets = [
+            ['blerify', 'projectid', 'course'],
+            ['blerify', 'templateid', 'projectid'],
+            ['blerify_credentials', 'projectid', 'credentialid'],
+            ['blerify_credentials', 'templateid', 'projectid'],
+        ];
+
+        foreach ($targets as [$tablename, $fieldname, $previous]) {
+            $table = new xmldb_table($tablename);
+            $field = new xmldb_field($fieldname, XMLDB_TYPE_CHAR, '255', null, null, null, null, $previous);
+
+            if ($dbman->field_exists($table, $field)) {
+                $dbman->change_field_notnull($table, $field);
+                $dbman->change_field_default($table, $field);
+            }
+        }
+
+        upgrade_mod_savepoint(true, 2026090700, 'blerify');
+    }
+
     return true;
 }

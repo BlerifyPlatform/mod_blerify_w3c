@@ -62,6 +62,14 @@ class restore_blerify_activity_structure_step extends restore_activity_structure
         $data->timecreated = $this->apply_date_offset($data->timecreated);
         $data->timemodified = $this->apply_date_offset($data->timemodified);
 
+        $data->credentialid = null;
+        $data->code = null;
+        $data->remotestatus = null;
+        $data->errordetail = null;
+        $data->status = 'pending';
+        $data->timeissued = 0;
+        $data->timeclaimed = 0;
+
         $newitemid = $DB->insert_record('blerify_credentials', $data);
         $this->set_mapping('blerify_credential', $oldid, $newitemid);
     }

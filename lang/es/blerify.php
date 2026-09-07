@@ -82,7 +82,6 @@ $string['privacy:metadata:blerify_credentials:status'] = 'El estado actual de la
 $string['error_not_configured'] = 'El plugin Blerify no está configurado correctamente. Por favor, contacta al administrador.';
 $string['error_api_call'] = 'Error al comunicarse con la API de Blerify: {$a}';
 
-
 // Manual issuance.
 $string['issue_credentials'] = 'Habilitar Credenciales';
 $string['issue_credentials_header'] = 'Participantes Inscritos';
@@ -100,11 +99,7 @@ $string['retry_issue'] = 'Reintentar';
 $string['retry_success'] = 'Credencial rehabilitada exitosamente.';
 $string['retry_failed'] = 'Reintento fallido. Revisa los registros para más detalles.';
 
-
-
 // Course completion notification.
-$string['completion_notification_subject'] = 'Blerify - Tu credencial está lista para reclamar';
-$string['completion_notification_body'] = 'Felicitaciones por completar el curso. Tu credencial digital está lista. Visita la actividad de certificado en el curso para reclamarla escaneando el código QR con tu Blerify Wallet.';
 
 // Capabilities.
 $string['blerify:addinstance'] = 'Agregar una nueva actividad de Certificado Blerify';
@@ -154,3 +149,16 @@ $string['projecttoissue_help'] = 'Proyecto de Blerify bajo el que se emite este 
 $string['templatepreview'] = 'Vista previa';
 $string['templatepreview_none'] = 'Esta plantilla no tiene imagen de vista previa en Blerify.';
 $string['error_no_projects'] = 'La cuenta de servicio no tiene ningun proyecto con permiso de emision. Revisa la configuracion en Blerify.';
+
+$string['error_invalid_project'] = 'El proyecto seleccionado no esta disponible para esta cuenta de servicio.';
+$string['error_invalid_template'] = 'La plantilla seleccionada no pertenece al proyecto elegido.';
+
+$string['privacy:metadata:blerify_credentials:projectid'] = 'El proyecto de Blerify con el que se emitio la credencial';
+$string['privacy:metadata:blerify_credentials:templateid'] = 'La plantilla con la que se emitio la credencial';
+$string['privacy:metadata:blerify_credentials:remotestatus'] = 'El ultimo estado informado por la API de Blerify';
+$string['privacy:metadata:blerify_credentials:errordetail'] = 'El motivo por el que fallo el ultimo intento de emision';
+$string['privacy:metadata:blerify_credentials:timeissued'] = 'La fecha en que se emitio la credencial';
+$string['privacy:metadata:blerify_credentials:timeclaimed'] = 'La fecha en que se reclamo la credencial en una billetera';
+$string['completion_notification_subject'] = 'Blerify - Tu credencial está lista para reclamar';
+$string['completion_notification_body'] = 'Felicitaciones por completar el curso. Tu credencial digital está lista. Visita la actividad de certificado en el curso para reclamarla escaneando el código QR con tu Blerify Wallet.';
+$string['error_no_template_id'] = 'Esta actividad no tiene ninguna plantilla de Blerify seleccionada. Edita sus ajustes y elige una.';

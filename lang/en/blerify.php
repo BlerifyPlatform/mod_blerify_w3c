@@ -72,14 +72,7 @@ $string['status_error'] = 'Error';
 
 // Events.
 $string['eventcertificatecreated'] = 'Blerify certificate created';
-$string['eventotpfailed'] = 'Wallet OTP attempt failed';
-$string['eventotplockout'] = 'Wallet OTP lockout';
-$string['eventclaimratelimited'] = 'Wallet claim rate limited';
-$string['eventclaimsucceeded'] = 'Wallet claim succeeded';
-$string['eventdidlinked'] = 'Wallet DID linked';
 $string['eventcredentialissuedmanual'] = 'Credential issued manually';
-$string['eventcredentialreissued'] = 'Credential reissued';
-$string['eventcredentialissuancefailed'] = 'Credential issuance failed';
 
 // Privacy.
 $string['privacy:metadata:blerify_credentials'] = 'Information about Blerify digital credentials issued to users';
@@ -90,7 +83,6 @@ $string['privacy:metadata:blerify_credentials:status'] = 'The current status of 
 // Errors.
 $string['error_not_configured'] = 'Blerify plugin is not properly configured. Please contact the administrator.';
 $string['error_api_call'] = 'Error communicating with Blerify API: {$a}';
-
 
 // Manual issuance.
 $string['issue_credentials'] = 'Enable Credentials';
@@ -109,11 +101,7 @@ $string['retry_issue'] = 'Retry';
 $string['retry_success'] = 'Credential re-enabled successfully.';
 $string['retry_failed'] = 'Retry failed. Check the logs for details.';
 
-
-
 // Course completion notification.
-$string['completion_notification_subject'] = 'Blerify - Your credential is ready to claim';
-$string['completion_notification_body'] = 'Congratulations on completing the course. Your digital credential is ready. Visit the certificate activity in the course to claim it by scanning the QR code with your Blerify Wallet.';
 
 // Capabilities.
 $string['blerify:addinstance'] = 'Add a new Blerify Certificate activity';
@@ -162,3 +150,23 @@ $string['projecttoissue_help'] = 'The Blerify project this certificate is issued
 $string['templatepreview'] = 'Preview';
 $string['templatepreview_none'] = 'This template has no preview image in Blerify.';
 $string['error_no_projects'] = 'The service account has no project with credential issuing permission. Check the configuration in Blerify.';
+
+$string['error_invalid_project'] = 'The selected project is not available for this service account.';
+$string['error_invalid_template'] = 'The selected template does not belong to the selected project.';
+
+$string['privacy:metadata:blerify_credentials:projectid'] = 'The Blerify project the credential was issued under';
+$string['privacy:metadata:blerify_credentials:templateid'] = 'The template the credential was issued with';
+$string['privacy:metadata:blerify_credentials:remotestatus'] = 'The status last reported by the Blerify API';
+$string['privacy:metadata:blerify_credentials:errordetail'] = 'The reason the last issuance attempt failed';
+$string['privacy:metadata:blerify_credentials:timeissued'] = 'The time the credential was issued';
+$string['privacy:metadata:blerify_credentials:timeclaimed'] = 'The time the credential was claimed into a wallet';
+$string['eventotpfailed'] = 'Wallet OTP attempt failed';
+$string['eventotplockout'] = 'Wallet OTP lockout';
+$string['eventclaimratelimited'] = 'Wallet claim rate limited';
+$string['eventclaimsucceeded'] = 'Wallet claim succeeded';
+$string['eventdidlinked'] = 'Wallet DID linked';
+$string['eventcredentialreissued'] = 'Credential reissued';
+$string['eventcredentialissuancefailed'] = 'Credential issuance failed';
+$string['completion_notification_subject'] = 'Blerify - Your credential is ready to claim';
+$string['completion_notification_body'] = 'Congratulations on completing the course. Your digital credential is ready. Visit the certificate activity in the course to claim it by scanning the QR code with your Blerify Wallet.';
+$string['error_no_template_id'] = 'This activity has no Blerify template selected. Edit its settings and pick one.';

@@ -54,8 +54,8 @@ class apirest {
      * @return string
      */
     private function project_path($projectid) {
-        return '/api/v1/organizations/' . rawurlencode($this->organizationid) .
-               '/projects/' . rawurlencode($projectid);
+        return '/api/v1/organizations/' . rawurlencode((string) $this->organizationid) .
+               '/projects/' . rawurlencode((string) $projectid);
     }
 
     /**
@@ -189,8 +189,8 @@ class apirest {
      * @throws \Exception On API error.
      */
     public function approve_credential($projectid, $credentialid, $templateid, $lang = 'es') {
-        $base = $this->project_path($projectid) . '/credentials/' . rawurlencode($credentialid);
-        $query = '?keystore=keyvault&lang=' . rawurlencode($lang);
+        $base = $this->project_path($projectid) . '/credentials/' . rawurlencode((string) $credentialid);
+        $query = '?keystore=keyvault&lang=' . rawurlencode((string) $lang);
         $body = ['templateId' => $templateid];
 
         try {
@@ -219,8 +219,8 @@ class apirest {
      * @throws \Exception On API error.
      */
     public function poll_credential($projectid, $credentialid, $templateid) {
-        $path = $this->project_path($projectid) . '/credentials/' . rawurlencode($credentialid) .
-                '/polling?templateId=' . rawurlencode($templateid);
+        $path = $this->project_path($projectid) . '/credentials/' . rawurlencode((string) $credentialid) .
+                '/polling?templateId=' . rawurlencode((string) $templateid);
 
         $response = $this->client->get($path);
         if (!$response) {

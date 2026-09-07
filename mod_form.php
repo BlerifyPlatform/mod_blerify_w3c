@@ -164,6 +164,24 @@ class mod_blerify_mod_form extends moodleform_mod {
             $errors['passgrade'] = get_string('error_passgrade_range', 'blerify');
         }
 
+        try {
+            $bundle = blerify_get_templates_by_project();
+        } catch (\Exception $e) {
+            return $errors;
+        }
+
+        $projectid = isset($data['projectid']) ? $data['projectid'] : '';
+        if (!array_key_exists($projectid, $bundle)) {
+            $errors['projectid'] = get_string('error_invalid_project', 'blerify');
+            return $errors;
+        }
+
+        $templateid = isset($data['templateid']) ? $data['templateid'] : '';
+        $allowed = array_column($bundle[$projectid], 'id');
+        if (!in_array($templateid, $allowed, true)) {
+            $errors['templateid'] = get_string('error_invalid_template', 'blerify');
+        }
+
         return $errors;
     }
 }
