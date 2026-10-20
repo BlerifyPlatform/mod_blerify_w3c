@@ -33,6 +33,7 @@ use core_privacy\local\request\contextlist;
 use core_privacy\local\request\transform;
 use core_privacy\local\request\userlist;
 use core_privacy\local\request\writer;
+use mod_blerify\local\credentials;
 
 class provider implements
     \core_privacy\local\metadata\provider,
@@ -59,6 +60,8 @@ class provider implements
             'timeclaimed' => 'privacy:metadata:blerify_credentials:timeclaimed',
             'timecreated' => 'privacy:metadata:blerify_credentials:timecreated',
         ], 'privacy:metadata:blerify_credentials');
+
+        $collection->add_subsystem_link('core_files', [], 'privacy:metadata:core_files');
 
         $collection->add_external_location_link('blerify_api', [
             'email' => 'privacy:metadata:blerify_api:email',
@@ -156,10 +159,11 @@ class provider implements
                         ? transform::datetime($credential->timeclaimed) : null,
                     'timecreated' => transform::datetime($credential->timecreated),
                 ];
-                writer::with_context($context)->export_data(
-                    [get_string('pluginname', 'blerify'), 'credentials'],
-                    $data
-                );
+                $subcontext = [get_string('pluginname', 'blerify'), 'credentials'];
+
+                writer::with_context($context)->export_data($subcontext, $data);
+                writer::with_context($context)->export_area_files($subcontext,
+                    'mod_blerify', credentials::FILEAREA, $credential->id);
             }
         }
     }
@@ -181,7 +185,17 @@ class provider implements
             return;
         }
 
+        get_file_storage()->delete_area_files($context->id, 'mod_blerify', credentials::FILEAREA);
+
         $DB->delete_records('blerify_credentials', ['blerifyid' => $cm->instance]);
+    }
+
+    private static function delete_files(\context $context, array $recordids) {
+        $fs = get_file_storage();
+
+        foreach ($recordids as $recordid) {
+            $fs->delete_area_files($context->id, 'mod_blerify', credentials::FILEAREA, $recordid);
+        }
     }
 
     /**
@@ -203,6 +217,12 @@ class provider implements
             if (!$cm) {
                 continue;
             }
+
+            $recordids = $DB->get_fieldset_select('blerify_credentials', 'id',
+                'blerifyid = :blerifyid AND userid = :userid',
+                ['blerifyid' => $cm->instance, 'userid' => $userid]);
+
+            self::delete_files($context, $recordids);
 
             $DB->delete_records('blerify_credentials', [
                 'blerifyid' => $cm->instance,
@@ -237,6 +257,11 @@ class provider implements
 
         list($insql, $params) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
         $params['blerifyid'] = $cm->instance;
+
+        $recordids = $DB->get_fieldset_select('blerify_credentials', 'id',
+            "blerifyid = :blerifyid AND userid $insql", $params);
+
+        self::delete_files($context, $recordids);
 
         $DB->delete_records_select('blerify_credentials',
             "blerifyid = :blerifyid AND userid $insql", $params);

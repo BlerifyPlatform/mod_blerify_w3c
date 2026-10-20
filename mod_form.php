@@ -32,6 +32,12 @@ require_once($CFG->dirroot . '/mod/blerify/locallib.php');
 
 class mod_blerify_mod_form extends moodleform_mod {
 
+    /** @var array Project ids the active service account can issue under. */
+    private $validprojects = [];
+
+    /** @var array Template ids the active service account can issue. */
+    private $validtemplates = [];
+
     /**
      * Define the form elements.
      */
@@ -81,9 +87,10 @@ class mod_blerify_mod_form extends moodleform_mod {
 
         $mform->addElement('header', 'blerifysettings', get_string('blerifysettings', 'blerify'));
 
-        $projectoptions = [];
+        $projectoptions = ['' => get_string('choosedots')];
         foreach ($projects as $project) {
             $projectoptions[$project['id']] = $project['name'] . ' (' . $project['id'] . ')';
+            $this->validprojects[] = $project['id'];
         }
         $mform->addElement('select', 'projectid', get_string('projecttoissue', 'blerify'), $projectoptions);
         $mform->addRule('projectid', null, 'required', null, 'client');
@@ -91,10 +98,11 @@ class mod_blerify_mod_form extends moodleform_mod {
 
         // Filled by JavaScript from the selected project; every option is listed
         // here so the field still validates when JavaScript is unavailable.
-        $templateoptions = [];
+        $templateoptions = ['' => get_string('choosedots')];
         foreach ($bundle as $templates) {
             foreach ($templates as $template) {
                 $templateoptions[$template['id']] = $template['title'];
+                $this->validtemplates[] = $template['id'];
             }
         }
         $mform->addElement('select', 'templateid', get_string('templatetoissue', 'blerify'), $templateoptions);
@@ -110,6 +118,7 @@ class mod_blerify_mod_form extends moodleform_mod {
         $PAGE->requires->js_call_amd('mod_blerify/template_picker', 'init', [[
             'templatesByProject' => $bundle,
             'noPreview' => get_string('templatepreview_none', 'blerify'),
+            'chooseDots' => get_string('choosedots'),
         ]]);
 
         $mform->addElement('checkbox', 'completionissue', get_string('completionissue', 'blerify'));
@@ -124,6 +133,49 @@ class mod_blerify_mod_form extends moodleform_mod {
 
         $this->standard_coursemodule_elements();
         $this->add_action_buttons();
+    }
+
+    /**
+     * Blank out and flag a stored project or template the active service account
+     * cannot use, so nothing is silently saved against the wrong one.
+     */
+    public function definition_after_data() {
+        parent::definition_after_data();
+
+        $mform = $this->_form;
+
+        if (!$mform->elementExists('projectid') || empty($this->current->instance)) {
+            return;
+        }
+
+        $storedproject = isset($this->current->projectid) ? $this->current->projectid : '';
+        $storedtemplate = isset($this->current->templateid) ? $this->current->templateid : '';
+
+        $badproject = !empty($storedproject)
+            && !in_array($storedproject, $this->validprojects, true);
+        $badtemplate = !empty($storedtemplate)
+            && !in_array($storedtemplate, $this->validtemplates, true);
+
+        if (!$badproject && !$badtemplate) {
+            return;
+        }
+
+        if ($badproject) {
+            $mform->getElement('projectid')->setValue('');
+        }
+        if ($badproject || $badtemplate) {
+            $mform->getElement('templateid')->setValue('');
+        }
+
+        $message = $badproject
+            ? get_string('warn_stored_project_invalid', 'blerify', s($storedproject))
+            : get_string('warn_stored_template_invalid', 'blerify', s($storedtemplate));
+
+        $mform->insertElementBefore(
+            $mform->createElement('static', 'blerifymismatch', '',
+                html_writer::div($message, 'alert alert-warning')),
+            'projectid'
+        );
     }
 
     /**

@@ -30,12 +30,15 @@
         <FIELD NAME="blerifyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="credentialid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Blerify credential _id"/>
+        <FIELD NAME="organizationid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Organization the credential was created under"/>
         <FIELD NAME="projectid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Project the credential was created under"/>
         <FIELD NAME="templateid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Template the credential was created with"/>
         <FIELD NAME="status" TYPE="char" LENGTH="32" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="pending, issuing, issued, claimed or error"/>
         <FIELD NAME="remotestatus" TYPE="char" LENGTH="32" NOTNULL="false" SEQUENCE="false" COMMENT="Last status reported by the API: PENDING, SENT or DELIVERED"/>
         <FIELD NAME="code" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Claim code used to build the wallet deeplink"/>
         <FIELD NAME="errordetail" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="reissues" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="How many times Moodle re-issued this credential to recover a missing certificate"/>
+        <FIELD NAME="timechecked" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Last time the claim state was read back from Blerify"/>
         <FIELD NAME="timeissued" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timeclaimed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>

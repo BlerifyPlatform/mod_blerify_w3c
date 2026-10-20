@@ -31,6 +31,9 @@ class service_account {
     /** @var string Config name holding the service account JSON. */
     const CONFIG_NAME = 'service_account_json';
 
+    /** @var string Config name holding the active flag. */
+    const ENABLED_NAME = 'service_account_enabled';
+
     /**
      * Encrypt and store the service account JSON.
      *
@@ -80,7 +83,26 @@ class service_account {
      *
      * @return array|null Decoded associative array or null.
      */
+    public static function is_enabled(): bool {
+        $enabled = get_config('mod_blerify', self::ENABLED_NAME);
+
+        return $enabled === false || (string) $enabled === '1';
+    }
+
+    public static function inspect(): ?array {
+        $raw = self::get_raw();
+        if (empty($raw)) {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
     public static function get_decoded(): ?array {
+        if (!self::is_enabled()) {
+            return null;
+        }
+
         $raw = self::get_raw();
         if (empty($raw)) {
             return null;

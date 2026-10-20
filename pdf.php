@@ -17,10 +17,6 @@
 /**
  * Serves a learner's credential PDF or thumbnail.
  *
- * Blerify returns signed URLs that expire after about a minute, so they are
- * requested on demand and streamed through Moodle rather than handed to the
- * browser, which also keeps the signature out of the page.
- *
  * @package    mod_blerify
  * @copyright  Blerify <dev@blerify.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -53,29 +49,17 @@ if (!in_array($asset, ['pdf', 'thumbnail'], true)) {
     throw new moodle_exception('invalidparameter', 'error');
 }
 
-function blerify_asset_host_allowed($host) {
-    $host = strtolower($host);
-    $suffixes = ['.blerify.com', '.googleapis.com', '.amazonaws.com', '.windows.net'];
-
-    if ($host === 'blerify.com') {
-        return true;
-    }
-
-    foreach ($suffixes as $suffix) {
-        if (substr($host, -strlen($suffix)) === $suffix) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-function blerify_asset_failure($reason) {
+function blerify_asset_failure($reason, $context = null) {
     debugging('Blerify asset unavailable: ' . $reason, DEBUG_DEVELOPER);
     header('HTTP/1.1 404 Not Found');
     header('Content-Type: text/plain; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
     echo get_string('error_credential_not_ready', 'blerify');
+
+    if ($context && has_capability('mod/blerify:manage', $context)) {
+        echo "\n\n" . $reason;
+    }
+
     exit;
 }
 
@@ -84,48 +68,21 @@ $credential = $manager->get_credential_for_user($cm->instance, $userid);
 
 if (!$credential || !in_array($credential->status,
         [credentials::STATUS_ISSUED, credentials::STATUS_CLAIMED], true)) {
-    blerify_asset_failure('credential not in a readable state');
+    blerify_asset_failure('credential not in a readable state: ' .
+        ($credential ? $credential->status : 'no record'), $context);
 }
 
 try {
-    $urls = $manager->get_asset_urls($credential);
+    $file = $manager->get_asset_file($credential, $asset);
 } catch (\Exception $e) {
-    blerify_asset_failure($e->getMessage());
+    blerify_asset_failure($e->getMessage(), $context);
 }
 
-$url = $urls[$asset];
-
-if (empty($url) || strpos($url, 'https://') !== 0) {
-    blerify_asset_failure('no signed URL for ' . $asset);
+if (!$file) {
+    blerify_asset_failure('no stored ' . $asset . ' for this credential', $context);
 }
 
-if (!blerify_asset_host_allowed((string)parse_url($url, PHP_URL_HOST))) {
-    blerify_asset_failure('unexpected storage host: ' . parse_url($url, PHP_URL_HOST));
-}
+$filename = clean_filename(format_string($cm->name)) .
+    ($asset === 'pdf' ? '.pdf' : '.png');
 
-$curl = new \curl();
-$curl->setopt([
-    'CURLOPT_TIMEOUT' => 30,
-    'CURLOPT_FOLLOWLOCATION' => false,
-    'CURLOPT_SSL_VERIFYPEER' => true,
-    'CURLOPT_SSL_VERIFYHOST' => 2,
-]);
-
-$content = $curl->get($url);
-
-if ($curl->error || ($curl->get_info()['http_code'] ?? 0) !== 200 || $content === '') {
-    blerify_asset_failure('fetch failed: ' . ($curl->error ?: 'HTTP ' .
-        ($curl->get_info()['http_code'] ?? 0)));
-}
-
-$ispdf = ($asset === 'pdf');
-$filename = clean_filename(format_string($cm->name)) . ($ispdf ? '.pdf' : '.png');
-
-header('Content-Type: ' . ($ispdf ? 'application/pdf' : 'image/png'));
-header('Content-Length: ' . strlen($content));
-header('Content-Disposition: ' . ($download ? 'attachment' : 'inline') .
-    '; filename="' . $filename . '"');
-header('X-Content-Type-Options: nosniff');
-header('Cache-Control: private, max-age=30');
-
-echo $content;
+send_stored_file($file, 30, 0, $download, ['filename' => $filename]);

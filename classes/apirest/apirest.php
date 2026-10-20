@@ -53,9 +53,15 @@ class apirest {
      * @param string $projectid
      * @return string
      */
-    private function project_path($projectid) {
-        return '/api/v1/organizations/' . rawurlencode((string) $this->organizationid) .
+    private function project_path($projectid, $organizationid = null) {
+        $org = !empty($organizationid) ? $organizationid : $this->organizationid;
+
+        return '/api/v1/organizations/' . rawurlencode((string) $org) .
                '/projects/' . rawurlencode((string) $projectid);
+    }
+
+    public function get_organization_id() {
+        return $this->organizationid;
     }
 
     /**
@@ -218,8 +224,9 @@ class apirest {
      * }
      * @throws \Exception On API error.
      */
-    public function poll_credential($projectid, $credentialid, $templateid) {
-        $path = $this->project_path($projectid) . '/credentials/' . rawurlencode((string) $credentialid) .
+    public function poll_credential($projectid, $credentialid, $templateid, $organizationid = null) {
+        $path = $this->project_path($projectid, $organizationid) .
+                '/credentials/' . rawurlencode((string) $credentialid) .
                 '/polling?templateId=' . rawurlencode((string) $templateid);
 
         $response = $this->client->get($path);

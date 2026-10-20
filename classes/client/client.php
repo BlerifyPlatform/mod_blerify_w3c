@@ -168,7 +168,7 @@ class client {
             } else if (is_string($response) && trim((string)$response) !== '') {
                 $msg .= ' body: ' . trim((string)$response);
             }
-            throw new \Exception("Blerify API error on " . strtoupper($method) . " $path: $msg");
+            throw new api_exception("Blerify API error on " . strtoupper($method) . " $path: $msg", $httpcode);
         }
 
         if ($response === false || $response === null || $response === '') {

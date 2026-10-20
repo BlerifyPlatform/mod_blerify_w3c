@@ -78,15 +78,44 @@ if (has_capability('mod/blerify:manage', $context) && in_array($action, ['issue'
         }
 
         $existing = $manager->get_credential_for_user($blerify->id, $userid);
-        if ($existing && $existing->status !== credentials::STATUS_ERROR) {
-            continue;
+
+        if ($existing) {
+            $stored = $manager->stored_assets($existing);
+            $hasassets = $stored['pdf'] || $stored['thumbnail'];
+            $settled = in_array($existing->status,
+                [credentials::STATUS_ISSUED, credentials::STATUS_CLAIMED], true);
+
+            if ($settled && $hasassets) {
+                continue;
+            }
+
+            if (!$settled && $existing->status !== credentials::STATUS_ERROR) {
+                continue;
+            }
         }
 
-        // Queued rather than issued inline: selecting a whole cohort would
-        // otherwise put two API round trips per learner in this one request.
+        if ($existing && !empty($existing->credentialid)) {
+            try {
+                $recovered = $manager->refresh($existing);
+                $stored = $manager->stored_assets($recovered);
+                if ($recovered->status !== credentials::STATUS_ERROR
+                        && ($stored['pdf'] || $stored['thumbnail'])) {
+                    $success++;
+                    continue;
+                }
+            } catch (\Exception $e) {
+                debugging('Blerify: could not recover credential ' . $existing->id .
+                    ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+            }
+        }
+
         if ($existing) {
+            get_file_storage()->delete_area_files($context->id, 'mod_blerify',
+                credentials::FILEAREA, $existing->id);
             $DB->delete_records('blerify_credentials', ['id' => $existing->id]);
         }
+
+        $manager->enable_for_user($blerify->id, $userid);
 
         \mod_blerify\task\issue_credential::queue($blerify->id, $userid);
 
@@ -117,6 +146,25 @@ if (has_capability('mod/blerify:manage', $context)) {
 
     $allcredentials = $manager->get_all_credentials($blerify->id);
 
+    $checked = 0;
+    foreach ($allcredentials as $key => $cred) {
+        if ($checked >= 25) {
+            break;
+        }
+        if ($cred->status !== credentials::STATUS_ISSUED) {
+            continue;
+        }
+        if ((time() - (int)$cred->timechecked) < credentials::STALE_AFTER) {
+            continue;
+        }
+        $refreshed = $manager->refresh_if_stale($cred);
+        $refreshed->firstname = $cred->firstname;
+        $refreshed->lastname = $cred->lastname;
+        $refreshed->email = $cred->email;
+        $allcredentials[$key] = $refreshed;
+        $checked++;
+    }
+
     $templatedata = [
         'activityname' => format_string($blerify->name),
         'projectid' => $blerify->projectid ?: '-',
@@ -137,12 +185,15 @@ if (has_capability('mod/blerify:manage', $context)) {
             'email' => $cred->email,
             'status' => get_string('status_' . $cred->status, 'blerify'),
             'errordetail' => $cred->errordetail ?: '',
+            'errormessage' => $cred->errordetail
+                ? blerify_error_message($cred->errordetail) : '',
             'is_error' => ($cred->status === credentials::STATUS_ERROR),
             'is_ready' => $isready,
             'userid' => $cred->userid,
             'credentialid' => $cred->credentialid ?: '-',
             'date' => $cred->timeissued ? userdate($cred->timeissued) : '-',
-            'pdf_url' => $isready
+            'pdf_url' => ($isready && ($manager->get_stored_asset($cred, 'pdf')
+                    || $cred->remotestatus !== 'DELIVERED'))
                 ? (new moodle_url('/mod/blerify/pdf.php',
                     ['id' => $cm->id, 'userid' => $cred->userid]))->out(false)
                 : '',
@@ -168,6 +219,11 @@ if (has_capability('mod/blerify:manage', $context)) {
         ];
     }
 
+    $templatedata['projectmismatch'] = !empty($blerify->projectid)
+        && !blerify_project_belongs_to_account($blerify->projectid);
+    $templatedata['editurl'] = (new moodle_url('/course/modedit.php',
+        ['update' => $cm->id]))->out(false);
+
     $templatedata['hasavailableusers'] = !empty($availableusers);
     $templatedata['availableusers'] = $availableusers;
 
@@ -178,6 +234,20 @@ if (has_capability('mod/blerify:manage', $context)) {
 } else {
 
     $credential = $manager->get_credential_for_user($blerify->id, $USER->id);
+
+    if ($credential) {
+        $credential = $manager->refresh_if_stale($credential);
+    }
+
+    if ($credential && in_array($credential->status,
+            [credentials::STATUS_ISSUED, credentials::STATUS_CLAIMED], true)) {
+        $manager->ensure_assets($credential);
+
+        if ($manager->needs_reissue($credential)) {
+            $credential = $manager->reissue($credential);
+        }
+    }
+
     $status = $credential ? $credential->status : 'none';
 
     $templatedata = [
@@ -189,11 +259,24 @@ if (has_capability('mod/blerify:manage', $context)) {
         'is_ready' => in_array($status,
             [credentials::STATUS_ISSUED, credentials::STATUS_CLAIMED], true),
         'is_claimed' => ($status === credentials::STATUS_CLAIMED),
-        'is_error' => ($status === credentials::STATUS_ERROR),
+        'is_error' => ($status === credentials::STATUS_ERROR
+            && !blerify_is_config_error($credential->errordetail)),
+        'is_misconfigured' => (empty($blerify->projectid) || empty($blerify->templateid))
+            || ($status === credentials::STATUS_ERROR
+                && blerify_is_config_error($credential->errordetail)),
         'not_yet' => ($status === 'none'),
         'cmid' => $cm->id,
         'sesskey' => sesskey(),
     ];
+
+    if ($templatedata['is_ready'] || $templatedata['is_processing']) {
+        $templatedata['is_misconfigured'] = false;
+    }
+
+    if ($templatedata['is_misconfigured']) {
+        $templatedata['not_yet'] = false;
+        $templatedata['is_error'] = false;
+    }
 
     if ($templatedata['not_yet']) {
         $percentage = blerify_get_course_grade_percentage($course->id, $USER->id);
@@ -203,6 +286,12 @@ if (has_capability('mod/blerify:manage', $context)) {
     }
 
     if ($templatedata['is_ready']) {
+        $available = $manager->stored_assets($credential);
+
+        $templatedata['has_thumbnail'] = $available['thumbnail'];
+        $templatedata['has_pdf'] = $available['pdf'];
+        $templatedata['no_assets'] = !$available['thumbnail'] && !$available['pdf'];
+
         $templatedata['thumbnail_url'] = (new moodle_url('/mod/blerify/pdf.php',
             ['id' => $cm->id, 'asset' => 'thumbnail']))->out(false);
         $templatedata['pdf_url'] = (new moodle_url('/mod/blerify/pdf.php',

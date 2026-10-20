@@ -42,6 +42,15 @@
         </small>
     </div>
 
+    {{#projectmismatch}}
+        <div class="alert alert-warning">
+            <p class="mb-2">{{#str}}warn_project_mismatch, blerify{{/str}}</p>
+            <a href="{{ editurl }}" class="btn btn-sm btn-warning">
+                {{#str}}warn_edit_activity, blerify{{/str}}
+            </a>
+        </div>
+    {{/projectmismatch}}
+
     {{! Issued credentials table }}
     {{#hascredentials}}
         <table class="table table-striped table-hover">
@@ -63,10 +72,13 @@
                         <td>
                             {{#is_error}}
                                 <span class="badge badge-danger bg-danger">{{ status }}</span>
+                                {{#errormessage}}
+                                    <div class="small mt-1">{{ errormessage }}</div>
+                                {{/errormessage}}
                                 {{#errordetail}}
                                     <details class="small mt-1">
                                         <summary>{{#str}}error_detail, blerify{{/str}}</summary>
-                                        <code class="d-block text-danger mt-1">{{ errordetail }}</code>
+                                        <code class="d-block text-muted mt-1">{{ errordetail }}</code>
                                     </details>
                                 {{/errordetail}}
                             {{/is_error}}

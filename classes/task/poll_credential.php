@@ -66,26 +66,52 @@ class poll_credential extends \core\task\adhoc_task {
             return;
         }
 
-        if (in_array($credrecord->status, [credentials::STATUS_ISSUED, credentials::STATUS_CLAIMED], true)) {
+        $manager = new credentials();
+
+        $stored = $manager->stored_assets($credrecord);
+        $complete = $stored['pdf'] && $stored['thumbnail'];
+
+        if ($complete && in_array($credrecord->status,
+                [credentials::STATUS_ISSUED, credentials::STATUS_CLAIMED], true)) {
             return;
         }
 
-        $manager = new credentials();
+        if ($credrecord->status === credentials::STATUS_CLAIMED && !$complete) {
+            mtrace('Blerify: credential ' . $credrecord->id .
+                ' was accepted into a wallet before Moodle could copy its assets');
+            return;
+        }
+
+        if (!\mod_blerify\local\service_account::is_enabled()) {
+            mtrace('Blerify: service account inactive, stopped polling credential ' . $credrecord->id);
+            return;
+        }
 
         try {
             $credrecord = $manager->refresh($credrecord);
         } catch (\Exception $e) {
             mtrace('Blerify: polling failed for credential ' . $credrecord->id . ': ' . $e->getMessage());
-            $this->requeue($data);
+            $notfound = strpos($e->getMessage(), 'HTTP 404') !== false;
+            $this->requeue($data, $notfound ? 'credential_not_found' : 'polling_failed');
             return;
         }
 
         if ($credrecord->status === credentials::STATUS_ISSUING) {
-            $this->requeue($data);
+            $this->requeue($data, 'polling_timeout');
             return;
         }
 
-        mtrace('Blerify: credential ' . $credrecord->id . ' reached status ' . $credrecord->status);
+        $stored = $manager->stored_assets($credrecord);
+
+        if (!$stored['pdf'] || !$stored['thumbnail']) {
+            mtrace('Blerify: credential ' . $credrecord->id .
+                ' is ' . $credrecord->status . ' but its assets are not stored yet');
+            $this->requeue($data, 'assets_not_stored');
+            return;
+        }
+
+        mtrace('Blerify: credential ' . $credrecord->id . ' reached status ' .
+            $credrecord->status . ' with its certificate stored');
     }
 
     /**
@@ -93,17 +119,24 @@ class poll_credential extends \core\task\adhoc_task {
      *
      * @param object $data The current custom data.
      */
-    private function requeue($data) {
+    private function requeue($data, $reason = 'polling_timeout') {
         global $DB;
 
         $attempt = (int)$data->attempt + 1;
 
         if ($attempt > self::MAX_ATTEMPTS) {
-            $DB->set_field('blerify_credentials', 'status', credentials::STATUS_ERROR,
+            $current = $DB->get_field('blerify_credentials', 'status',
                 ['id' => $data->credentialrecordid]);
-            $DB->set_field('blerify_credentials', 'errordetail', 'polling_timeout',
+
+            if (!in_array($current, [credentials::STATUS_ISSUED, credentials::STATUS_CLAIMED], true)) {
+                $DB->set_field('blerify_credentials', 'status', credentials::STATUS_ERROR,
+                    ['id' => $data->credentialrecordid]);
+            }
+
+            $DB->set_field('blerify_credentials', 'errordetail', $reason,
                 ['id' => $data->credentialrecordid]);
-            mtrace('Blerify: gave up polling credential ' . $data->credentialrecordid);
+            mtrace('Blerify: gave up polling credential ' . $data->credentialrecordid .
+                ' after ' . self::MAX_ATTEMPTS . ' attempts: ' . $reason);
             return;
         }
 

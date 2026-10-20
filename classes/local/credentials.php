@@ -28,6 +28,7 @@ namespace mod_blerify\local;
 defined('MOODLE_INTERNAL') || die();
 
 use mod_blerify\client\client;
+use mod_blerify\client\api_exception;
 use mod_blerify\apirest\apirest;
 use mod_blerify\task\poll_credential;
 
@@ -43,6 +44,14 @@ class credentials {
     const STATUS_CLAIMED = 'claimed';
     /** Issuance failed. */
     const STATUS_ERROR = 'error';
+
+    const FILEAREA = 'credential';
+
+    const MAX_REISSUES = 1;
+
+    const STALE_AFTER = 60;
+
+    private $contextids = [];
 
     /**
      * Create and approve a credential for a user, then queue the polling task.
@@ -76,6 +85,7 @@ class credentials {
                         $user, $blerifyrecord->templateid, $projectid);
                 }
 
+                $credrecord->organizationid = $api->get_organization_id();
                 $credrecord->projectid = $projectid;
                 $credrecord->templateid = $blerifyrecord->templateid;
 
@@ -117,30 +127,54 @@ class credentials {
      * @throws \Exception
      */
     public function refresh($credrecord) {
-        global $DB;
-
         if (empty($credrecord->credentialid)) {
             return $credrecord;
         }
 
-        $api = new apirest(new client());
-
         try {
-            $result = $api->poll_credential(
-                $this->get_scope($credrecord, 'projectid'),
-                $credrecord->credentialid,
-                $this->get_scope($credrecord, 'templateid'));
-        } catch (\Exception $e) {
-            if (strpos($e->getMessage(), 'HTTP 404') !== false) {
-                $credrecord->status = self::STATUS_ERROR;
-                $credrecord->errordetail = 'credential_not_found';
-                $credrecord->timemodified = time();
-                $DB->update_record('blerify_credentials', $credrecord);
+            $result = $this->poll($credrecord);
+        } catch (api_exception $e) {
+            if ($this->is_gone_from_polling($credrecord, $e)) {
+                return $this->mark_claimed($credrecord);
             }
             throw $e;
         }
 
         return $this->apply_poll_result($credrecord, $result);
+    }
+
+    private function poll($credrecord) {
+        $api = new apirest(new client());
+
+        return $api->poll_credential(
+            $this->get_scope($credrecord, 'projectid'),
+            $credrecord->credentialid,
+            $this->get_scope($credrecord, 'templateid'),
+            $this->get_scope($credrecord, 'organizationid'));
+    }
+
+    private function is_gone_from_polling($credrecord, api_exception $e) {
+        return $e->get_http_code() === 404
+            && in_array($credrecord->status, [self::STATUS_ISSUED, self::STATUS_CLAIMED], true);
+    }
+
+    private function mark_claimed($credrecord) {
+        global $DB;
+
+        if ($credrecord->status === self::STATUS_CLAIMED
+                && $credrecord->remotestatus === 'DELIVERED') {
+            return $credrecord;
+        }
+
+        $now = time();
+        $credrecord->status = self::STATUS_CLAIMED;
+        $credrecord->remotestatus = 'DELIVERED';
+        $credrecord->timeissued = $credrecord->timeissued ?: $now;
+        $credrecord->timeclaimed = $credrecord->timeclaimed ?: $now;
+        $credrecord->timemodified = $now;
+        $DB->update_record('blerify_credentials', $credrecord);
+
+        return $credrecord;
     }
 
     /**
@@ -192,14 +226,13 @@ class credentials {
             $DB->update_record('blerify_credentials', $credrecord);
         }
 
+        $this->store_assets($credrecord, $result);
+
         return $credrecord;
     }
 
     /**
      * Fetch a fresh signed PDF URL for a credential.
-     *
-     * The URLs Blerify returns are valid for roughly a minute, so they are read
-     * on demand instead of being stored.
      *
      * @param object $credrecord
      * @return array ['pdf' => string|null, 'thumbnail' => string|null]
@@ -210,15 +243,237 @@ class credentials {
             return ['pdf' => null, 'thumbnail' => null];
         }
 
-        $api = new apirest(new client());
-        $result = $api->poll_credential(
-            $this->get_scope($credrecord, 'projectid'),
-            $credrecord->credentialid,
-            $this->get_scope($credrecord, 'templateid'));
+        try {
+            $result = $this->poll($credrecord);
+        } catch (api_exception $e) {
+            if ($this->is_gone_from_polling($credrecord, $e)) {
+                $this->mark_claimed($credrecord);
+                return ['pdf' => null, 'thumbnail' => null];
+            }
+            throw $e;
+        }
 
         $this->apply_poll_result($credrecord, $result);
 
         return ['pdf' => $result['pdf'], 'thumbnail' => $result['thumbnail']];
+    }
+
+    public function ensure_assets($credrecord) {
+        $available = $this->stored_assets($credrecord);
+
+        if ($available['pdf'] && $available['thumbnail']) {
+            return $available;
+        }
+
+        if ($credrecord->remotestatus === 'DELIVERED') {
+            return $available;
+        }
+
+        try {
+            $this->get_asset_urls($credrecord);
+        } catch (\Exception $e) {
+            debugging('Blerify: could not fetch assets for credential ' .
+                $credrecord->id . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+
+        return $this->stored_assets($credrecord);
+    }
+
+    public function get_asset_file($credrecord, $asset) {
+        $file = $this->get_stored_asset($credrecord, $asset);
+        if ($file) {
+            return $file;
+        }
+
+        $this->ensure_assets($credrecord);
+
+        return $this->get_stored_asset($credrecord, $asset);
+    }
+
+    public function refresh_if_stale($credrecord, $maxage = self::STALE_AFTER) {
+        global $DB;
+
+        if ($credrecord->status !== self::STATUS_ISSUED || empty($credrecord->credentialid)) {
+            return $credrecord;
+        }
+
+        if ((time() - (int)$credrecord->timechecked) < $maxage) {
+            return $credrecord;
+        }
+
+        if (!service_account::is_enabled()) {
+            return $credrecord;
+        }
+
+        try {
+            $credrecord = $this->refresh($credrecord);
+        } catch (\Exception $e) {
+            debugging('Blerify: claim check failed for credential ' . $credrecord->id .
+                ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+
+        $credrecord->timechecked = time();
+        $DB->set_field('blerify_credentials', 'timechecked',
+            $credrecord->timechecked, ['id' => $credrecord->id]);
+
+        return $credrecord;
+    }
+
+    public function needs_reissue($credrecord) {
+        if (!in_array($credrecord->status,
+                [self::STATUS_ISSUED, self::STATUS_CLAIMED], true)) {
+            return false;
+        }
+
+        if ((int)$credrecord->reissues >= self::MAX_REISSUES) {
+            return false;
+        }
+
+        $stored = $this->stored_assets($credrecord);
+
+        return !$stored['pdf'] && !$stored['thumbnail'];
+    }
+
+    public function reissue($credrecord) {
+        global $DB;
+
+        $blerifyid = $credrecord->blerifyid;
+        $userid = $credrecord->userid;
+        $count = (int)$credrecord->reissues + 1;
+
+        $contextid = $this->get_context_id($credrecord);
+        if ($contextid) {
+            get_file_storage()->delete_area_files($contextid, 'mod_blerify',
+                self::FILEAREA, $credrecord->id);
+        }
+
+        $DB->delete_records('blerify_credentials', ['id' => $credrecord->id]);
+
+        $new = $this->get_or_create_record($blerifyid, $userid);
+        $new->reissues = $count;
+        $new->timemodified = time();
+        $DB->update_record('blerify_credentials', $new);
+
+        \mod_blerify\task\issue_credential::queue($blerifyid, $userid);
+
+        return $new;
+    }
+
+    public function stored_assets($credrecord) {
+        return [
+            'pdf' => (bool)$this->get_stored_asset($credrecord, 'pdf'),
+            'thumbnail' => (bool)$this->get_stored_asset($credrecord, 'thumbnail'),
+        ];
+    }
+
+    public function get_stored_asset($credrecord, $asset) {
+        $contextid = $this->get_context_id($credrecord);
+        if (!$contextid) {
+            return null;
+        }
+
+        $file = get_file_storage()->get_file($contextid, 'mod_blerify', self::FILEAREA,
+            $credrecord->id, '/', self::asset_filename($asset));
+
+        return $file ? $file : null;
+    }
+
+    private function store_assets($credrecord, array $result) {
+        $contextid = $this->get_context_id($credrecord);
+        if (!$contextid) {
+            return;
+        }
+
+        foreach (['pdf', 'thumbnail'] as $asset) {
+            if (empty($result[$asset]) || $this->get_stored_asset($credrecord, $asset)) {
+                continue;
+            }
+
+            $content = self::fetch_asset($result[$asset]);
+            if ($content === null) {
+                continue;
+            }
+
+            try {
+                get_file_storage()->create_file_from_string([
+                    'contextid' => $contextid,
+                    'component' => 'mod_blerify',
+                    'filearea' => self::FILEAREA,
+                    'itemid' => $credrecord->id,
+                    'filepath' => '/',
+                    'filename' => self::asset_filename($asset),
+                ], $content);
+            } catch (\Exception $e) {
+                debugging('Blerify: could not store ' . $asset . ' for credential ' .
+                    $credrecord->id . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+            }
+        }
+    }
+
+    private static function fetch_asset($url) {
+        global $CFG;
+        require_once($CFG->libdir . '/filelib.php');
+
+        if (strpos((string)$url, 'https://') !== 0) {
+            return null;
+        }
+
+        if (!self::asset_host_allowed((string)parse_url($url, PHP_URL_HOST))) {
+            debugging('Blerify: refused asset from unexpected host ' .
+                parse_url($url, PHP_URL_HOST), DEBUG_DEVELOPER);
+            return null;
+        }
+
+        $curl = new \curl();
+        $curl->setopt([
+            'CURLOPT_TIMEOUT' => 30,
+            'CURLOPT_FOLLOWLOCATION' => false,
+            'CURLOPT_SSL_VERIFYPEER' => true,
+            'CURLOPT_SSL_VERIFYHOST' => 2,
+        ]);
+
+        $content = $curl->get($url);
+
+        if ($curl->error || ($curl->get_info()['http_code'] ?? 0) !== 200 || $content === '') {
+            debugging('Blerify: asset fetch failed: ' . ($curl->error ?: 'HTTP ' .
+                ($curl->get_info()['http_code'] ?? 0)), DEBUG_DEVELOPER);
+            return null;
+        }
+
+        return $content;
+    }
+
+    public static function asset_host_allowed($host) {
+        $host = strtolower($host);
+
+        if ($host === 'blerify.com') {
+            return true;
+        }
+
+        foreach (['.blerify.com', '.googleapis.com', '.amazonaws.com', '.windows.net'] as $suffix) {
+            if (substr($host, -strlen($suffix)) === $suffix) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function asset_filename($asset) {
+        return $asset === 'pdf' ? 'credential.pdf' : 'thumbnail.png';
+    }
+
+    private function get_context_id($credrecord) {
+        $blerifyid = (int)$credrecord->blerifyid;
+
+        if (!array_key_exists($blerifyid, $this->contextids)) {
+            $cm = get_coursemodule_from_instance('blerify', $blerifyid, 0, false, IGNORE_MISSING);
+            $this->contextids[$blerifyid] = $cm
+                ? \context_module::instance($cm->id)->id
+                : null;
+        }
+
+        return $this->contextids[$blerifyid];
     }
 
     /**
@@ -254,6 +509,12 @@ class credentials {
 
         if (!empty($credrecord->{$field})) {
             return $credrecord->{$field};
+        }
+
+        if ($field === 'organizationid') {
+            $sa = service_account::get_decoded();
+
+            return !empty($sa['organization_id']) ? $sa['organization_id'] : '';
         }
 
         $blerifyrecord = $DB->get_record('blerify', ['id' => $credrecord->blerifyid], '*', MUST_EXIST);
@@ -319,6 +580,21 @@ class credentials {
      * @param int $userid
      * @return object|false
      */
+    public function enable_for_user($blerifyid, $userid) {
+        return $this->get_or_create_record($blerifyid, $userid);
+    }
+
+    public function mark_error($credrecord, $reason) {
+        global $DB;
+
+        $credrecord->status = self::STATUS_ERROR;
+        $credrecord->errordetail = $reason;
+        $credrecord->timemodified = time();
+        $DB->update_record('blerify_credentials', $credrecord);
+
+        return $credrecord;
+    }
+
     public function get_credential_for_user($blerifyid, $userid) {
         global $DB;
 

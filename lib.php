@@ -77,6 +77,12 @@ function blerify_delete_instance($id) {
         return false;
     }
 
+    $cm = get_coursemodule_from_instance('blerify', $id, 0, false, IGNORE_MISSING);
+    if ($cm) {
+        get_file_storage()->delete_area_files(context_module::instance($cm->id)->id,
+            'mod_blerify', \mod_blerify\local\credentials::FILEAREA);
+    }
+
     $DB->delete_records('blerify_credentials', ['blerifyid' => $id]);
     $DB->delete_records('blerify', ['id' => $id]);
 

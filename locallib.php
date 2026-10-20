@@ -57,6 +57,37 @@ function blerify_get_projects() {
 }
 
 /**
+ * Whether a project belongs to the organization of the loaded service account.
+ *
+ * @param string $projectid
+ * @return bool True when it belongs, or when the list cannot be checked.
+ */
+function blerify_project_belongs_to_account($projectid) {
+    if (empty($projectid)) {
+        return false;
+    }
+
+    try {
+        $projects = blerify_get_projects();
+    } catch (\Exception $e) {
+        debugging('Blerify: could not verify project ownership: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        return true;
+    }
+
+    if (empty($projects)) {
+        return true;
+    }
+
+    foreach ($projects as $project) {
+        if ($project['id'] === $projectid) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * Every project mapped to the templates it holds.
  *
  * Both selects in the activity form are filled from this in one go, so picking
@@ -90,6 +121,42 @@ function blerify_get_templates_by_project() {
 function blerify_get_templates($projectid) {
     return (new \mod_blerify\apirest\apirest(new \mod_blerify\client\client()))
         ->get_templates($projectid);
+}
+
+/**
+ * A readable explanation for a stored error detail.
+ *
+ * @param string $detail The code or raw message kept in blerify_credentials.
+ * @return string A message the teacher can act on.
+ */
+function blerify_error_message($detail) {
+    $detail = trim((string)$detail);
+
+    if ($detail === '') {
+        return get_string('error_reason_unknown', 'blerify');
+    }
+
+    $key = 'error_reason_' . $detail;
+
+    if (preg_match('/^[a-z_]+$/', $detail)
+            && get_string_manager()->string_exists($key, 'blerify')) {
+        return get_string($key, 'blerify');
+    }
+
+    return get_string('error_reason_unknown', 'blerify');
+}
+
+/**
+ * Whether a stored error detail is about how the activity is set up rather than
+ * about the issuance itself.
+ *
+ * @param string $detail
+ * @return bool
+ */
+function blerify_is_config_error($detail) {
+    return in_array(trim((string)$detail), [
+        'project_not_in_organization',
+    ], true);
 }
 
 /**

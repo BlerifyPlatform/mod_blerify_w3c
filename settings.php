@@ -35,3 +35,17 @@ $settings->add(
     )
 );
 
+$settings->add(new admin_setting_configcheckbox(
+    'mod_blerify/service_account_enabled',
+    get_string('setting_service_account_enabled', 'blerify'),
+    get_string('setting_service_account_enabled_desc', 'blerify'),
+    1
+));
+
+$settings->add(new admin_setting_heading(
+    'mod_blerify/check_link',
+    get_string('setting_check_link', 'blerify'),
+    get_string('setting_check_link_desc', 'blerify') . ' ' .
+        html_writer::link(new moodle_url('/mod/blerify/check.php'),
+            get_string('setting_check_link', 'blerify'))
+));

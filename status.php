@@ -66,7 +66,7 @@ if (!$credential) {
 }
 
 $pending = in_array($credential->status,
-    [credentials::STATUS_ISSUING, credentials::STATUS_ISSUED], true);
+    [credentials::STATUS_ISSUING, credentials::STATUS_ISSUED, credentials::STATUS_ERROR], true);
 
 if ($pending && (time() - (int)$credential->timemodified) >= BLERIFY_REFRESH_INTERVAL) {
     try {

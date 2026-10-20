@@ -94,14 +94,20 @@ class admin_setting_serviceaccount extends admin_setting {
         $html .= '</div>';
 
         if (!empty($current)) {
-            $info = \mod_blerify\local\service_account::get_decoded();
+            $info = \mod_blerify\local\service_account::inspect();
+            $enabled = \mod_blerify\local\service_account::is_enabled();
             $clientid = (is_array($info) && isset($info['client_id'])) ? $info['client_id'] : '';
-            $label = get_string('setting_service_account_configured', 'blerify');
+            $label = $enabled
+                ? get_string('setting_service_account_configured', 'blerify')
+                : get_string('setting_service_account_inactive', 'blerify');
             if ($clientid !== '') {
                 $label .= ' (' . $clientid . ')';
             }
+            $style = $enabled
+                ? 'background-color:#2d6a2f;color:#fff;'
+                : 'background-color:#8a6d1f;color:#fff;';
             $html .= '<div class="mb-2">';
-            $html .= '<span class="badge badge-success">' . s($label) . '</span>';
+            $html .= '<span class="badge" style="' . $style . '">' . s($label) . '</span>';
             $html .= '</div>';
         }
 

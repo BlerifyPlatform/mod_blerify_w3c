@@ -63,9 +63,24 @@ class issue_credential extends \core\task\adhoc_task {
         }
 
         $manager = new credentials();
+        $credrecord = $manager->enable_for_user($blerifyrecord->id, $user->id);
 
-        $existing = $manager->get_credential_for_user($blerifyrecord->id, $user->id);
-        if ($existing && $existing->status !== credentials::STATUS_ERROR) {
+        if (in_array($credrecord->status,
+                [credentials::STATUS_ISSUED, credentials::STATUS_CLAIMED], true)) {
+            return;
+        }
+
+        if (!\mod_blerify\local\service_account::is_enabled()) {
+            mtrace('Blerify: service account inactive, issuance for user ' . $user->id . ' postponed');
+            return;
+        }
+
+        require_once($GLOBALS['CFG']->dirroot . '/mod/blerify/locallib.php');
+
+        if (!blerify_project_belongs_to_account($blerifyrecord->projectid)) {
+            $manager->mark_error($credrecord, 'project_not_in_organization');
+            mtrace('Blerify: project ' . $blerifyrecord->projectid .
+                ' does not belong to the configured service account');
             return;
         }
 

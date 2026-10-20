@@ -338,5 +338,44 @@ function xmldb_blerify_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090700, 'blerify');
     }
 
+    if ($oldversion < 2026101600) {
+
+        $table = new xmldb_table('blerify_credentials');
+        $field = new xmldb_field('organizationid', XMLDB_TYPE_CHAR, '255', null,
+            null, null, null, 'credentialid');
+
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026101600, 'blerify');
+    }
+
+    if ($oldversion < 2026101606) {
+
+        $table = new xmldb_table('blerify_credentials');
+        $field = new xmldb_field('reissues', XMLDB_TYPE_INTEGER, '4', null,
+            XMLDB_NOTNULL, null, '0', 'errordetail');
+
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026101606, 'blerify');
+    }
+
+    if ($oldversion < 2026101607) {
+
+        $table = new xmldb_table('blerify_credentials');
+        $field = new xmldb_field('timechecked', XMLDB_TYPE_INTEGER, '10', null,
+            XMLDB_NOTNULL, null, '0', 'reissues');
+
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026101607, 'blerify');
+    }
+
     return true;
 }

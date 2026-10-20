@@ -84,6 +84,11 @@ define([], function() {
 
                 template.textContent = '';
 
+                var placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = config.chooseDots || '';
+                template.appendChild(placeholder);
+
                 list.forEach(function(item) {
                     var option = document.createElement('option');
                     option.value = item.id;
