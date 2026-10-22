@@ -1,0 +1,101 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_blerify/view_student
+
+    Learner view: the issued certificate.
+}}
+<div class="mod-blerify-student">
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+
+            {{#not_yet}}
+                <div class="alert alert-info mb-0">
+                    <strong>{{#str}}certificate_not_yet, blerify{{/str}}</strong>
+                    <p class="mb-0 mt-2">{{#str}}certificate_threshold, blerify{{/str}} {{ passgrade }}%</p>
+                    {{#current_grade}}
+                        <p class="mb-0"><small>{{#str}}certificate_current_grade, blerify{{/str}} {{ current_grade }}%</small></p>
+                    {{/current_grade}}
+                </div>
+            {{/not_yet}}
+
+            {{#is_processing}}
+                <div class="alert alert-info mb-0 d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm mr-2" role="status"></div>
+                    <span>{{#str}}certificate_processing, blerify{{/str}}</span>
+                </div>
+            {{/is_processing}}
+
+            {{#is_misconfigured}}
+                <div class="alert alert-warning mb-0">
+                    {{#str}}certificate_not_configured, blerify{{/str}}
+                </div>
+            {{/is_misconfigured}}
+
+            {{#is_error}}
+                <div class="alert alert-danger mb-0">
+                    <strong>{{#str}}certificate_error, blerify{{/str}}</strong>
+                </div>
+            {{/is_error}}
+
+            {{#is_ready}}
+                <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
+                    <div>
+                        <h4 class="mb-1">{{ activityname }}</h4>
+                        {{#templatename}}<small class="text-muted">{{ templatename }}</small>{{/templatename}}
+                    </div>
+                    {{#is_claimed}}
+                        <span class="badge p-2" style="background-color:#2d6a2f;color:#fff;font-size:.95em;">
+                            {{#str}}status_claimed, blerify{{/str}}
+                        </span>
+                    {{/is_claimed}}
+                    {{^is_claimed}}
+                        <span class="badge p-2" style="background-color:#0f5c9c;color:#fff;font-size:.95em;">
+                            {{#str}}status_issued, blerify{{/str}}
+                        </span>
+                    {{/is_claimed}}
+                </div>
+
+                {{#has_thumbnail}}
+                    <div class="mb-3 text-center" style="border:1px solid #dee2e6;border-radius:8px;overflow:hidden;">
+                        <img src="{{ thumbnail_url }}" alt="{{ activityname }}"
+                             style="display:block;width:100%;max-width:920px;height:auto;margin:0 auto;" />
+                    </div>
+                {{/has_thumbnail}}
+
+                {{#no_assets}}
+                    <div class="alert alert-warning mb-0">
+                        {{#str}}certificate_in_wallet, blerify{{/str}}
+                    </div>
+                {{/no_assets}}
+
+                {{#has_pdf}}
+                    <div class="d-flex flex-wrap justify-content-center" style="gap:12px;">
+                        <a href="{{ pdf_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">
+                            {{#str}}pdf_open, blerify{{/str}}
+                        </a>
+                        <a href="{{ download_url }}" class="btn btn-outline-primary">
+                            {{#str}}pdf_download, blerify{{/str}}
+                        </a>
+                    </div>
+                {{/has_pdf}}
+            {{/is_ready}}
+
+        </div>
+
+    </div>
+</div>

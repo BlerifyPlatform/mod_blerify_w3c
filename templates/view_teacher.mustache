@@ -1,0 +1,196 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_blerify/view_teacher
+
+    Teacher/manager view for Blerify certificate activity.
+
+    Context variables required for this template:
+    * activityname - The name of the activity
+    * projectid - Blerify project ID
+    * templatename - Title of the Blerify template being issued
+    * passgrade - Minimum course grade percentage required
+    * hascredentials - Whether any credentials have been issued
+    * credentials - Array of credential records with fullname, email, status, credentialid, date, pdf_url
+    * cmid - Course module ID
+    * sesskey - Session key for form security
+    * hasavailableusers - Whether there are users available for manual issuance
+    * availableusers - Array of users available for manual issuance
+}}
+<div class="mod-blerify-teacher">
+    <h3>{{#str}}viewheader, blerify, {{ activityname }}{{/str}}</h3>
+
+    <div class="mb-3">
+        <small class="text-muted">
+            <strong>Project ID:</strong> {{ projectid }} |
+            <strong>{{#str}}templatetoissue, blerify{{/str}}:</strong> {{ templatename }} |
+            <strong>{{#str}}passgrade, blerify{{/str}}:</strong> {{ passgrade }}%
+        </small>
+    </div>
+
+    {{#projectmismatch}}
+        <div class="alert alert-warning">
+            <p class="mb-2">{{#str}}warn_project_mismatch, blerify{{/str}}</p>
+            <a href="{{ editurl }}" class="btn btn-sm btn-warning">
+                {{#str}}warn_edit_activity, blerify{{/str}}
+            </a>
+        </div>
+    {{/projectmismatch}}
+
+    {{! Issued credentials table }}
+    {{#hascredentials}}
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>{{#str}}col_student, blerify{{/str}}</th>
+                    <th>{{#str}}col_email, blerify{{/str}}</th>
+                    <th>{{#str}}col_status, blerify{{/str}}</th>
+                    <th>{{#str}}col_credentialid, blerify{{/str}}</th>
+                    <th>{{#str}}col_date, blerify{{/str}}</th>
+                    <th>{{#str}}col_actions, blerify{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#credentials}}
+                    <tr>
+                        <td>{{ fullname }}</td>
+                        <td>{{ email }}</td>
+                        <td>
+                            {{#is_error}}
+                                <span class="badge badge-danger bg-danger">{{ status }}</span>
+                                {{#errormessage}}
+                                    <div class="small mt-1">{{ errormessage }}</div>
+                                {{/errormessage}}
+                                {{#errordetail}}
+                                    <details class="small mt-1">
+                                        <summary>{{#str}}error_detail, blerify{{/str}}</summary>
+                                        <code class="d-block text-muted mt-1">{{ errordetail }}</code>
+                                    </details>
+                                {{/errordetail}}
+                            {{/is_error}}
+                            {{^is_error}}
+                                {{ status }}
+                            {{/is_error}}
+                        </td>
+                        <td><code>{{ credentialid }}</code></td>
+                        <td>{{ date }}</td>
+                        <td>
+                            {{#is_ready}}
+                                <a href="{{ pdf_url }}" target="_blank" rel="noopener"
+                                   class="btn btn-sm btn-outline-secondary mr-1">
+                                    {{#str}}pdf_open, blerify{{/str}}
+                                </a>
+                            {{/is_ready}}
+                            {{#is_error}}
+                                <form method="post" action="view.php?id={{ cmid }}" style="display:inline;">
+                                    <input type="hidden" name="action" value="retry">
+                                    <input type="hidden" name="sesskey" value="{{ sesskey }}">
+                                    <input type="hidden" name="retryuserid" value="{{ userid }}">
+                                    <button type="submit" class="btn btn-sm btn-warning">
+                                        {{#str}}retry_issue, blerify{{/str}}
+                                    </button>
+                                </form>
+                            {{/is_error}}
+                        </td>
+                    </tr>
+                {{/credentials}}
+            </tbody>
+        </table>
+    {{/hascredentials}}
+
+    {{^hascredentials}}
+        <div class="alert alert-info">
+            {{#str}}no_credentials_issued, blerify{{/str}}
+        </div>
+    {{/hascredentials}}
+
+    {{! Manual issuance section }}
+    <hr class="my-4">
+    <h4>{{#str}}issue_credentials_header, blerify{{/str}}</h4>
+    <p class="text-muted">{{#str}}issue_credentials_help, blerify{{/str}}</p>
+
+    {{#hasavailableusers}}
+        <form method="post" action="view.php?id={{ cmid }}">
+            <input type="hidden" name="action" value="issue">
+            <input type="hidden" name="sesskey" value="{{ sesskey }}">
+
+            <div class="mb-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="blerify-select-all">
+                    {{#str}}select_all, blerify{{/str}}
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="blerify-deselect-all">
+                    {{#str}}deselect_all, blerify{{/str}}
+                </button>
+            </div>
+
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"></th>
+                        <th>{{#str}}col_participant, blerify{{/str}}</th>
+                        <th>{{#str}}col_email, blerify{{/str}}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#availableusers}}
+                        <tr>
+                            <td>
+                                <input type="checkbox"
+                                       name="selectedusers[]"
+                                       value="{{ userid }}"
+                                       class="blerify-user-checkbox">
+                            </td>
+                            <td>{{ fullname }}</td>
+                            <td>{{ email }}</td>
+                        </tr>
+                    {{/availableusers}}
+                </tbody>
+            </table>
+
+            <button type="submit" class="btn btn-primary">
+                {{#str}}issue_selected, blerify{{/str}}
+            </button>
+        </form>
+    {{/hasavailableusers}}
+
+    {{^hasavailableusers}}
+        <div class="alert alert-secondary">
+            {{#str}}no_participants_available, blerify{{/str}}
+        </div>
+    {{/hasavailableusers}}
+</div>
+
+{{#js}}
+(function() {
+    var selectAll = document.getElementById('blerify-select-all');
+    var deselectAll = document.getElementById('blerify-deselect-all');
+    if (selectAll) {
+        selectAll.addEventListener('click', function() {
+            document.querySelectorAll('.blerify-user-checkbox').forEach(function(cb) {
+                cb.checked = true;
+            });
+        });
+    }
+    if (deselectAll) {
+        deselectAll.addEventListener('click', function() {
+            document.querySelectorAll('.blerify-user-checkbox').forEach(function(cb) {
+                cb.checked = false;
+            });
+        });
+    }
+})();
+{{/js}}
